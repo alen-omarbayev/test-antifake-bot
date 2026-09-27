@@ -5,10 +5,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from bot.db.engine import get_sessionmaker
-from bot.repositories.serial_number_repository import SerialNumberRepository
 from bot.services.normalization import normalize_serial
-
-CHUNK_SIZE = 1000
+from bot.services.serial_import_service import SerialImportService
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -33,23 +31,16 @@ def read_rows(csv_path: Path) -> list[dict]:
         return rows
 
 
-def _chunks(rows: list[dict], size: int) -> list[list[dict]]:
-    return [rows[i : i + size] for i in range(0, len(rows), size)]
-
-
 async def import_serials(csv_path: Path) -> None:
     rows = read_rows(csv_path)
-    inserted = 0
 
     async with get_sessionmaker()() as session:
-        repo = SerialNumberRepository(session)
-        for chunk in _chunks(rows, CHUNK_SIZE):
-            inserted += await repo.bulk_upsert(chunk)
+        result = await SerialImportService(session).import_rows(rows)
         await session.commit()
 
     print(
-        f"Processed {len(rows)} rows, inserted {inserted} new, "
-        f"{len(rows) - inserted} already existed."
+        f"Processed {len(rows)} rows, inserted {result.inserted} new, "
+        f"{result.existing} already existed."
     )
 
 
