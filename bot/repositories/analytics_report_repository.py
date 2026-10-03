@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import NamedTuple
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.analytics.events import EVENT_SERIAL_CHECK_FAILED
 from bot.models.analytics_event import AnalyticsEvent
 from bot.models.user import User
+
+
+class EventRow(NamedTuple):
+    created_at: datetime
+    telegram_id: int
+    username: str | None
+    event_type: str
+    serial_number: str | None
+    reason: str | None
+    batch_id: str | None
 
 
 class AnalyticsReportRepository:
@@ -72,3 +83,22 @@ class AnalyticsReportRepository:
             select(users.c.day, func.count()).group_by(users.c.day)
         )
         return {day: count for day, count in result.all()}
+
+    async def list_events(self, since: datetime, limit: int) -> list[EventRow]:
+        payload = AnalyticsEvent.event_payload
+        result = await self._session.execute(
+            select(
+                AnalyticsEvent.created_at,
+                User.telegram_id,
+                User.username,
+                AnalyticsEvent.event_type,
+                payload["serial_number"].astext,
+                payload["reason"].astext,
+                payload["batch_id"].astext,
+            )
+            .join(User, User.id == AnalyticsEvent.user_id)
+            .where(AnalyticsEvent.created_at >= since)
+            .order_by(AnalyticsEvent.created_at, AnalyticsEvent.id)
+            .limit(limit)
+        )
+        return [EventRow(*row) for row in result.all()]

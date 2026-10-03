@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from scripts.analytics_report import DEFAULT_DAYS, parse_args
@@ -15,3 +17,8 @@ def test_parse_args_custom_days():
 def test_parse_args_rejects_invalid_days(value):
     with pytest.raises(SystemExit):
         parse_args(["--days", value])
+
+
+def test_parse_args_xlsx_path():
+    assert parse_args(["--xlsx", "out.xlsx"]).xlsx == Path("out.xlsx")
+    assert parse_args([]).xlsx is None

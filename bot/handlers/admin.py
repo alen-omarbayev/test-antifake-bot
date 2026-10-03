@@ -1,16 +1,26 @@
+import asyncio
+
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config.settings import get_settings
+from bot.services.analytics_export_service import (
+    AnalyticsExportService,
+    export_filename,
+    render_xlsx,
+)
 from bot.services.analytics_report_service import AnalyticsReportService, format_report
 
 admin_router = Router(name="admin")
 
 DEFAULT_STATS_DAYS = 7
 MAX_STATS_DAYS = 90
-STATS_USAGE_TEXT = f"Использование: /stats [дни], от 1 до {MAX_STATS_DAYS}. По умолчанию {DEFAULT_STATS_DAYS}."
+STATS_USAGE_TEXT = (
+    f"Использование: /stats [дни] или /stats_export [дни], от 1 до {MAX_STATS_DAYS}. "
+    f"По умолчанию {DEFAULT_STATS_DAYS}."
+)
 
 
 def is_admin(message: Message) -> bool:
@@ -37,3 +47,23 @@ async def cmd_stats(message: Message, command: CommandObject, session: AsyncSess
 
     report = await AnalyticsReportService(session, get_settings().report_timezone).build(days)
     await message.answer(format_report(report))
+
+
+@admin_router.message(Command("stats_export"), is_admin)
+async def cmd_stats_export(
+    message: Message, command: CommandObject, session: AsyncSession
+) -> None:
+    days = parse_stats_days(command.args)
+    if days is None:
+        await message.answer(STATS_USAGE_TEXT)
+        return
+
+    await message.answer("⏳ Готовлю файл…")
+    export = await AnalyticsExportService(session, get_settings().report_timezone).build(days)
+    content = await asyncio.to_thread(render_xlsx, export)
+    caption = f"📊 Отчёт за {days} дн., событий: {len(export.events)}"
+    if export.truncated:
+        caption += " (обрезано, см. лист «Сводка»)"
+    await message.answer_document(
+        BufferedInputFile(content, filename=export_filename(export.report)), caption=caption
+    )
