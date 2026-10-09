@@ -4,8 +4,7 @@ from itertools import count
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiogram import Bot, Dispatcher
-from aiogram.methods import SendMessage, TelegramMethod
+from aiogram import Dispatcher
 from aiogram.types import Chat, Document, Message, Update, User
 from openpyxl import Workbook
 
@@ -19,22 +18,6 @@ NON_ADMIN_ID = 999
 # FSM state is keyed by chat + user, so a fresh user per test gives a clean state
 # while all tests share one Dispatcher.
 _user_ids = count(1000)
-
-
-class RecordingBot(Bot):
-    """Bot that records outgoing API calls instead of sending them to Telegram."""
-
-    def __init__(self) -> None:
-        super().__init__(token="42:TEST")
-        self.calls: list[TelegramMethod] = []
-
-    async def __call__(self, method, request_timeout=None):
-        self.calls.append(method)
-        return True
-
-    @property
-    def replies(self) -> list[str]:
-        return [call.text for call in self.calls if isinstance(call, SendMessage)]
 
 
 def make_xlsx(rows: list[list]) -> bytes:
@@ -71,11 +54,6 @@ def importer(user_id):
         patch("bot.handlers.serial_import.SerialImportService", return_value=service),
     ):
         yield calls
-
-
-@pytest.fixture
-def bot():
-    return RecordingBot()
 
 
 @pytest.fixture(scope="module")
