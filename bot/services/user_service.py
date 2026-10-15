@@ -10,3 +10,7 @@ class UserService:
 
     async def register_activity(self, telegram_id: int, username: str | None) -> User:
         return await self._repo.upsert_on_activity(telegram_id, username)
+
+    async def set_language(self, user: User, language: str) -> None:
+        await self._repo.set_language(user.id, language)
+        user.language = language

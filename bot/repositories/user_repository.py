@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,3 +27,8 @@ class UserRepository:
         )
         result = await self._session.execute(stmt)
         return result.scalar_one()
+
+    async def set_language(self, user_id: int, language: str) -> None:
+        await self._session.execute(
+            update(User).where(User.id == user_id).values(language=language)
+        )
